@@ -1,0 +1,15 @@
+# build and dependency output
+.venv/
+**/node_modules/
+**/__pycache__/
+**/.pytest_cache/
+
+# node data: vaults, keys, logs
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# tooling scratch
+.superpowers/
+.claude/
