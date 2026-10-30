@@ -16,13 +16,23 @@ function Get-LanIp {
     return $cfg.IPv4Address.IPAddress
 }
 
+function Invoke-Native([string]$Exe, [string[]]$Arguments) {
+    # Windows PowerShell 5.1 turns a native program's stderr into a terminating error under "Stop",
+    # so run it with "Continue" and judge it by its exit code alone.
+    $ErrorActionPreference = "Continue"
+    & $Exe @Arguments | Out-Host
+    return $LASTEXITCODE
+}
+
 function Find-Python {
     # Python 3.11 or newer: the py launcher first, then whatever "python" is on PATH.
+    # Returns the command and its leading arguments, such as @("py", "-3.12").
     foreach ($c in @(@("py", "-3.12"), @("py", "-3.11"), @("python"))) {
-        $exe, $rest = $c
+        $exe = $c[0]
+        $pre = @($c | Select-Object -Skip 1)
         if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) { continue }
-        & $exe @rest -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" 2>$null
-        if ($LASTEXITCODE -eq 0) { return , $c }
+        $check = $pre + @("-c", "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)")
+        if ((Invoke-Native $exe $check) -eq 0) { return , $c }
     }
     throw "Python 3.11 or newer is needed. Install it from https://www.python.org/downloads/ and run this again."
 }
@@ -31,17 +41,16 @@ function Install-Deps {
     # A venv in .venv, refreshed whenever requirements.txt changes.
     if (-not (Test-Path $VenvPython)) {
         $py = Find-Python
-        $exe, $rest = $py
         Write-Host "Creating a virtual environment in .venv ..."
-        & $exe @rest -m venv $Venv
-        if ($LASTEXITCODE -ne 0) { throw "Could not create the virtual environment." }
+        $code = Invoke-Native $py[0] (@($py | Select-Object -Skip 1) + @("-m", "venv", $Venv))
+        if ($code -ne 0) { throw "Could not create the virtual environment." }
     }
     $stamp = Join-Path $Venv "requirements.installed"
     $req = Join-Path $Root "requirements.txt"
     if (-not (Test-Path $stamp) -or (Get-Item $req).LastWriteTime -gt (Get-Item $stamp).LastWriteTime) {
         Write-Host "Installing the pinned packages from requirements.txt ..."
-        & $VenvPython -m pip install --disable-pip-version-check -q -r $req
-        if ($LASTEXITCODE -ne 0) { throw "pip install failed." }
+        $code = Invoke-Native $VenvPython @("-m", "pip", "install", "--disable-pip-version-check", "-q", "-r", $req)
+        if ($code -ne 0) { throw "pip install failed." }
         Set-Content -Path $stamp -Value (Get-Date -Format o)
     }
 }

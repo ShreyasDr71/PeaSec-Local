@@ -25,4 +25,5 @@ Write-Host "  Teammates on this Wi-Fi pair with you at:  $LanIp"
 Write-Host "  Demo mode (sign-in page) starts a seeded team; other devices can pair with its Tom at ${LanIp}:7606"
 Write-Host "  Your data is in $($env:DATA_DIR). Press Ctrl+C to stop."
 Write-Host ""
+$ErrorActionPreference = "Continue"     # the node logs to stderr; that is not a failure
 & $VenvPython -m p2psec
