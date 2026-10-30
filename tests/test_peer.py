@@ -195,3 +195,16 @@ def test_pair_address_defaults_to_peer_port(given, expected):
 def test_bad_pair_address_is_refused(bad):
     with pytest.raises(ValueError, match="IP address"):
         peermod.normalize_addr(bad)
+
+
+def test_default_advertised_address_is_an_ip_not_the_hostname(tmp_path, monkeypatch):
+    import ipaddress
+    import socket
+    from p2psec import node as nodemod
+    monkeypatch.setattr(socket, "gethostname", lambda: "LAPTOP-SECRET")
+    n = Node(Settings(node_id="x", data_dir=str(tmp_path / "x"), beacon=False))
+    host, port = peermod.split_addr(n.advertise_addr)
+    assert "LAPTOP-SECRET" not in n.advertise_addr
+    ipaddress.ip_address(host)                       # raises if it is not an IP literal
+    assert port == 7600
+    assert nodemod.lan_ip() == host

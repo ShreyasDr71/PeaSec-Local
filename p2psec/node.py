@@ -22,6 +22,19 @@ DEFAULT_LOGIN = ("user", "user")
 SWEEP_EVERY, FLUSH_EVERY, PING_EVERY = 15, 10, 30
 
 
+def lan_ip() -> str:
+    """This machine's address on its default route, used when ADVERTISE_ADDR is not set.
+
+    Connecting a UDP socket sends nothing; it only makes the OS pick the outgoing interface.
+    Peers then see a reachable IP rather than this computer's hostname.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 9))          # TEST-NET-1: never routed anywhere
+            return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
 class Node:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -35,7 +48,7 @@ class Node:
         self.peer = PeerService(self)
         self.beacon = None
         self.peer_port = settings.peer_port
-        self.advertise_addr = settings.advertise_addr or f"{socket.gethostname()}:{settings.peer_port}"
+        self.advertise_addr = settings.advertise_addr or f"{lan_ip()}:{settings.peer_port}"
         self._loops: list[asyncio.Task] = []
         self.vault_params: dict | None = None     # Argon2 override (tests)
 
@@ -161,7 +174,7 @@ class Node:
         port = await self.peer.start(self.settings.peer_host, self.settings.peer_port)
         if not self.settings.advertise_addr:
             self.peer_port = port
-            self.advertise_addr = f"{socket.gethostname()}:{port}" if self.settings.peer_port else f"127.0.0.1:{port}"
+            self.advertise_addr = f"{lan_ip()}:{port}" if self.settings.peer_port else f"127.0.0.1:{port}"
         if self.settings.beacon:
             from .discovery import Beacon
             self.beacon = Beacon(self)
